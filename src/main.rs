@@ -29,7 +29,8 @@ async fn main() {
         .route("/", get(root))
         .route("/users", post(create_user))
         .route("/devices", get(device_data))
-        .route("/devices/turn_on", post(turn_on_device));
+        .route("/devices/turn_on", post(turn_on_device))
+        .route("/devices/turn_off", post(turn_off_device));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
@@ -114,6 +115,37 @@ async fn turn_on_device(
         }
     }
 
+    (StatusCode::OK, Json(result))
+}
+
+async fn turn_off_device(
+    Json(payload): Json<SimpleDeviceData>,
+) -> (StatusCode, Json<bool>) {
+    let mut result = false;
+    let devices = get_devices().await;
+    for device in devices {
+        result = match device {
+            Device::Unknown(device) => {
+                let sys_info = match device.sysinfo() {
+                    Ok(sys_info) => sys_info,
+                    Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
+                };
+                let command = json!({
+                    "system": {"set_relay_state": {"state": 0}}
+                }).to_string();
+                let command_result = check_command_error(
+                    &device.send(&command).unwrap(),
+                    "/system/set_relay_state/err_code",
+                );
+                match command_result {
+                    Ok(_) => true,
+                    Err(_) => false,
+                }
+            },
+            _ => false
+        }
+    }
+    
     (StatusCode::OK, Json(result))
 }
 
