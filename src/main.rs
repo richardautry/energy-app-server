@@ -86,43 +86,28 @@ fn check_command_error(value: &serde_json::Value, pointer: &str) -> Result<()> {
     }
 }
 
-#[debug_handler]
 async fn turn_on_device(
     Json(payload): Json<SimpleDeviceData>,
 ) -> (StatusCode, Json<bool>) {
-    let mut result = false;
-    let devices = get_devices().await;
-    for device in devices {
-        result = match device {
-            Device::Unknown(device) => {
-                let sys_info = match device.sysinfo() {
-                    Ok(sys_info) => sys_info,
-                    Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
-                };
-                let command = json!({
-                    "system": {"set_relay_state": {"state": 1}}
-                }).to_string();
-                let command_result = check_command_error(
-                    &device.send(&command).unwrap(),
-                    "/system/set_relay_state/err_code",
-                );
-                match command_result {
-                    Ok(_) => true,
-                    Err(_) => false,
-                }
-            },
-            _ => false
-        }
-    }
-
-    (StatusCode::OK, Json(result))
+    turn_on_off_device(payload, true).await
 }
 
 async fn turn_off_device(
     Json(payload): Json<SimpleDeviceData>,
 ) -> (StatusCode, Json<bool>) {
+    turn_on_off_device(payload, false).await
+}
+
+async fn turn_on_off_device (
+    payload: SimpleDeviceData,
+    turn_on: bool
+) -> (StatusCode, Json<bool>) {
     let mut result = false;
     let devices = get_devices().await;
+    let state_int: u8 = match turn_on {
+        true => 1,
+        false => 0
+    };
     for device in devices {
         result = match device {
             Device::Unknown(device) => {
@@ -130,22 +115,27 @@ async fn turn_off_device(
                     Ok(sys_info) => sys_info,
                     Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
                 };
-                let command = json!({
-                    "system": {"set_relay_state": {"state": 0}}
-                }).to_string();
-                let command_result = check_command_error(
-                    &device.send(&command).unwrap(),
-                    "/system/set_relay_state/err_code",
-                );
-                match command_result {
-                    Ok(_) => true,
-                    Err(_) => false,
+                match sys_info.mac == payload.mac {
+                    true => {
+                        let command = json!({
+                            "system": {"set_relay_state": {"state": state_int}}
+                        }).to_string();
+                        let command_result = check_command_error(
+                            &device.send(&command).unwrap(),
+                            "/system/set_relay_state/err_code",
+                        );
+                        match command_result {
+                            Ok(_) => true,
+                            Err(_) => false,
+                        }
+                    }
+                    false => false
                 }
             },
             _ => false
         }
     }
-    
+
     (StatusCode::OK, Json(result))
 }
 
