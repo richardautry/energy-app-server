@@ -187,17 +187,19 @@ async fn start_timer(length_ms: u64) {
 async fn get_device<T>(mac: String) -> Result<Device> {
     let devices = get_devices().await;
     for device in devices {
-        match device {
+        let found: bool = match device {
             Device::Unknown(device) => {
                 let sys_info = match device.sysinfo() {
                     Ok(sys_info) => sys_info,
+                    // TODO: Return errors correctly
                     Err(_) => return Err("No device found")
                 };
-                if sys_info.mac == mac {
-                    return Ok(device)
-                }
+                sys_info.mac == mac
             },
-            _ => _
+            _ => false
+        };
+        if found {
+            return Ok(device)
         }
     }
     Error("No device found")
