@@ -9,17 +9,17 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tplinker::{
     datatypes::{DeviceData, SysInfo},
-    devices,
+    devices::{RawDevice},
     error::{Error, Result},
-    capabilities::DeviceActions
+    capabilities::DeviceActions,
 };
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::SystemTime};
 use tplinker::{
     discovery::discover,
     devices::Device,
 };
 use serde_json::json;
-
+use tokio::time;
 
 #[tokio::main]
 async fn main() {
@@ -30,7 +30,8 @@ async fn main() {
         .route("/users", post(create_user))
         .route("/devices", get(device_data))
         .route("/devices/turn_on", post(turn_on_device))
-        .route("/devices/turn_off", post(turn_off_device));
+        .route("/devices/turn_off", post(turn_off_device))
+        .route("/devices/set_timer", post(set_timer_device));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
@@ -154,4 +155,50 @@ struct User {
 struct SimpleDeviceData {
     alias: String,
     mac: String
+}
+
+#[derive(Serialize, Deserialize)]
+struct SetTimerData {
+    alias: String,
+    mac: String,
+    start_date_time: SystemTime,
+    end_date_time: SystemTime
+}
+
+async fn start_timer(length_ms: u64) {
+    let duration: time::Duration = time::Duration::from_millis(length_ms);
+    let now: SystemTime = SystemTime::now();
+    let mut interval = time::interval(time::Duration::from_secs(1));
+
+    while now.elapsed().expect("").as_secs() < duration.as_secs() {
+        interval.tick().await;
+        println!("tick");
+    }
+}
+
+// async fn start_timer_device (
+//     Json(payload): Json<SimpleDeviceData>,
+// ) -> (StatusCode, Json<bool>) {
+
+// }
+
+
+
+async fn get_device<T>(mac: String) -> Result<Device> {
+    let devices = get_devices().await;
+    for device in devices {
+        match device {
+            Device::Unknown(device) => {
+                let sys_info = match device.sysinfo() {
+                    Ok(sys_info) => sys_info,
+                    Err(_) => return Err("No device found")
+                };
+                if sys_info.mac == mac {
+                    return Ok(device)
+                }
+            },
+            _ => _
+        }
+    }
+    Error("No device found")
 }
