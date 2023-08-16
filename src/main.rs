@@ -137,34 +137,6 @@ async fn turn_on_off_device (
         _ => false
     };
 
-    // for device in devices {
-    //     result = match device {
-    //         Device::Unknown(device) => {
-    //             let sys_info = match device.sysinfo() {
-    //                 Ok(sys_info) => sys_info,
-    //                 Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
-    //             };
-    //             match sys_info.mac == payload.mac {
-    //                 true => {
-    //                     let command = json!({
-    //                         "system": {"set_relay_state": {"state": state_int}}
-    //                     }).to_string();
-    //                     let command_result = check_command_error(
-    //                         &device.send(&command).unwrap(),
-    //                         "/system/set_relay_state/err_code",
-    //                     );
-    //                     match command_result {
-    //                         Ok(_) => true,
-    //                         Err(_) => false,
-    //                     }
-    //                 }
-    //                 false => false
-    //             }
-    //         },
-    //         _ => false
-    //     }
-    // }
-
     (StatusCode::OK, Json(result))
 }
 
@@ -209,39 +181,19 @@ async fn start_timer(length_ms: u64) {
 // ) -> (StatusCode, Json<bool>) {
 
 // }
+
 #[derive(Debug, Clone)]
 struct FindDeviceError;
 
 
-async fn get_device(mac: &String) -> Result<& 'static Device, FindDeviceError> {
+async fn get_device(mac: &String) -> Result<Device, FindDeviceError> {
     let devices = get_devices().await;
-    let mut found: bool = false;
     let ret_device: &Device = devices.iter().find_map(|d| match_device(d, &mac)).unwrap();
-    // for device in devices {
-    //     found = match device {
-    //         Device::Unknown(device) => {
-    //             let sys_info = match device.sysinfo() {
-    //                 Ok(sys_info) => sys_info,
-    //                 // TODO: Return errors correctly
-    //                 Err(_) => return Err(FindDeviceError)
-    //             };
-    //             sys_info.mac == mac
-    //         },
-    //         _ => false
-    //     };
-    //     if found {
-    //         ret_device = device;
-    //         break;
-    //     }
-    // }
-    // match found {
-    //     true => Ok(ret_device),
-    //     false => Err(FindDeviceError)
-    // }
-    Ok(ret_device)
+    
+    Ok(ret_device.clone())
 }
 
-fn match_device(device: &Device, mac: &String) -> Option<& 'static Device> {
+fn match_device<'device>(device: & 'device Device, mac: &String) -> Option<& 'device Device> {
     let found = match device {
         Device::Unknown(device) => {
             let sys_info = match device.sysinfo() {
