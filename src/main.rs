@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tplinker::{
     datatypes::{DeviceData, SysInfo},
     devices::{RawDevice},
-    error::{Error, Result},
+    error::{Error as TPLinkerError, Result as TPLinkerResult},
     capabilities::DeviceActions,
 };
 use std::{net::SocketAddr, time::SystemTime};
@@ -20,6 +20,7 @@ use tplinker::{
 };
 use serde_json::json;
 use tokio::time;
+use std::error;
 
 #[tokio::main]
 async fn main() {
@@ -30,8 +31,8 @@ async fn main() {
         .route("/users", post(create_user))
         .route("/devices", get(device_data))
         .route("/devices/turn_on", post(turn_on_device))
-        .route("/devices/turn_off", post(turn_off_device))
-        .route("/devices/set_timer", post(set_timer_device));
+        .route("/devices/turn_off", post(turn_off_device));
+        //.route("/devices/set_timer", post(set_timer_device));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
@@ -75,15 +76,15 @@ async fn device_data() -> Json<Vec<SimpleDeviceData>> {
     axum::Json(devices_data)
 }
 
-fn check_command_error(value: &serde_json::Value, pointer: &str) -> Result<()> {
+fn check_command_error(value: &serde_json::Value, pointer: &str) -> TPLinkerResult<()> {
     if let Some(err_code) = value.pointer(pointer) {
         if err_code == 0 {
             Ok(())
         } else {
-            Err(Error::from(format!("Invalid error code {}", err_code)))
+            Err(TPLinkerError::from(format!("Invalid error code {}", err_code)))
         }
     } else {
-        Err(Error::from(format!("Invalid response format: {}", value)))
+        Err(TPLinkerError::from(format!("Invalid response format: {}", value)))
     }
 }
 
@@ -109,33 +110,60 @@ async fn turn_on_off_device (
         true => 1,
         false => 0
     };
-    for device in devices {
-        result = match device {
-            Device::Unknown(device) => {
-                let sys_info = match device.sysinfo() {
-                    Ok(sys_info) => sys_info,
-                    Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
-                };
-                match sys_info.mac == payload.mac {
-                    true => {
-                        let command = json!({
-                            "system": {"set_relay_state": {"state": state_int}}
-                        }).to_string();
-                        let command_result = check_command_error(
-                            &device.send(&command).unwrap(),
-                            "/system/set_relay_state/err_code",
-                        );
-                        match command_result {
-                            Ok(_) => true,
-                            Err(_) => false,
-                        }
+    let device = get_device(&payload.mac).await.unwrap();
+    result = match device {
+        Device::Unknown(device) => {
+            let sys_info = match device.sysinfo() {
+                Ok(sys_info) => sys_info,
+                Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
+            };
+            match sys_info.mac == payload.mac {
+                true => {
+                    let command = json!({
+                        "system": {"set_relay_state": {"state": state_int}}
+                    }).to_string();
+                    let command_result = check_command_error(
+                        &device.send(&command).unwrap(),
+                        "/system/set_relay_state/err_code",
+                    );
+                    match command_result {
+                        Ok(_) => true,
+                        Err(_) => false,
                     }
-                    false => false
                 }
-            },
-            _ => false
-        }
-    }
+                false => false
+            }
+        },
+        _ => false
+    };
+
+    // for device in devices {
+    //     result = match device {
+    //         Device::Unknown(device) => {
+    //             let sys_info = match device.sysinfo() {
+    //                 Ok(sys_info) => sys_info,
+    //                 Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
+    //             };
+    //             match sys_info.mac == payload.mac {
+    //                 true => {
+    //                     let command = json!({
+    //                         "system": {"set_relay_state": {"state": state_int}}
+    //                     }).to_string();
+    //                     let command_result = check_command_error(
+    //                         &device.send(&command).unwrap(),
+    //                         "/system/set_relay_state/err_code",
+    //                     );
+    //                     match command_result {
+    //                         Ok(_) => true,
+    //                         Err(_) => false,
+    //                     }
+    //                 }
+    //                 false => false
+    //             }
+    //         },
+    //         _ => false
+    //     }
+    // }
 
     (StatusCode::OK, Json(result))
 }
@@ -181,26 +209,52 @@ async fn start_timer(length_ms: u64) {
 // ) -> (StatusCode, Json<bool>) {
 
 // }
+#[derive(Debug, Clone)]
+struct FindDeviceError;
 
 
-
-async fn get_device<T>(mac: String) -> Result<Device> {
+async fn get_device(mac: &String) -> Result<& 'static Device, FindDeviceError> {
     let devices = get_devices().await;
-    for device in devices {
-        let found: bool = match device {
-            Device::Unknown(device) => {
-                let sys_info = match device.sysinfo() {
-                    Ok(sys_info) => sys_info,
-                    // TODO: Return errors correctly
-                    Err(_) => return Err("No device found")
-                };
-                sys_info.mac == mac
-            },
-            _ => false
-        };
-        if found {
-            return Ok(device)
-        }
+    let mut found: bool = false;
+    let ret_device: &Device = devices.iter().find_map(|d| match_device(d, &mac)).unwrap();
+    // for device in devices {
+    //     found = match device {
+    //         Device::Unknown(device) => {
+    //             let sys_info = match device.sysinfo() {
+    //                 Ok(sys_info) => sys_info,
+    //                 // TODO: Return errors correctly
+    //                 Err(_) => return Err(FindDeviceError)
+    //             };
+    //             sys_info.mac == mac
+    //         },
+    //         _ => false
+    //     };
+    //     if found {
+    //         ret_device = device;
+    //         break;
+    //     }
+    // }
+    // match found {
+    //     true => Ok(ret_device),
+    //     false => Err(FindDeviceError)
+    // }
+    Ok(ret_device)
+}
+
+fn match_device(device: &Device, mac: &String) -> Option<& 'static Device> {
+    let found = match device {
+        Device::Unknown(device) => {
+            let sys_info = match device.sysinfo() {
+                Ok(sys_info) => sys_info,
+                // TODO: Return errors correctly
+                Err(_) => return None
+            };
+            sys_info.mac == mac.clone()
+        },
+        _ => false
+    };
+    match found {
+        true => Some(device),
+        false => None
     }
-    Error("No device found")
 }
