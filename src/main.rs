@@ -21,18 +21,25 @@ use tplinker::{
 use serde_json::json;
 use tokio::time;
 use std::error;
+use chrono::{Utc, Date};
+use chrono::DateTime;
+use chrono::offset::TimeZone;
+use chrono::serde::ts_seconds_option;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+
+    // Create channel
+    // let (tx, rx) = tokio::sync::channel();
 
     let app = Router::new()
         .route("/", get(root))
         .route("/users", post(create_user))
         .route("/devices", get(device_data))
         .route("/devices/turn_on", post(turn_on_device))
-        .route("/devices/turn_off", post(turn_off_device));
-        //.route("/devices/set_timer", post(set_timer_device));
+        .route("/devices/turn_off", post(turn_off_device))
+        .route("/devices/set_timer", post(start_timer_device));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
@@ -157,12 +164,25 @@ struct SimpleDeviceData {
     mac: String
 }
 
+// #[derive(Serialize, Deserialize)]
+// struct SetTimerData {
+//     alias: String,
+//     mac: String,
+//     // #[serde(with = "ts_seconds_option")]
+//     // start_date_time: Option<DateTime<Utc>>,
+//     // end_date_time: Option<DateTime<Utc>>
+//     start_date_time: String,
+//     end_date_time: String
+// }
+
 #[derive(Serialize, Deserialize)]
 struct SetTimerData {
     alias: String,
     mac: String,
-    start_date_time: SystemTime,
-    end_date_time: SystemTime
+    // #[serde(with = "ts_seconds_option")]
+    // start_date_time: Option<DateTime<Utc>>,
+    // end_date_time: Option<DateTime<Utc>>
+    length_ms: u64
 }
 
 async fn start_timer(length_ms: u64) {
@@ -177,10 +197,39 @@ async fn start_timer(length_ms: u64) {
 }
 
 // async fn start_timer_device (
-//     Json(payload): Json<SimpleDeviceData>,
+//     Json(payload): Json<SetTimerData>,
 // ) -> (StatusCode, Json<bool>) {
-
+//     let result = false;
+//     // let device = get_device(&payload.mac).await;
+//     // TODO: Handle unpacking these values
+//     let start_date_time = match payload.start_date_time.parse::<DateTime<Utc>>() {
+//         Ok(start_date_time) => start_date_time,
+//         Err(_) => return (StatusCode::UNPROCESSABLE_ENTITY, Json(result))
+//     };
+//     let end_date_time =  match payload.start_date_time.parse::<DateTime<Utc>>() {
+//         Ok(start_date_time) => start_date_time,
+//         Err(_) => return (StatusCode::UNPROCESSABLE_ENTITY, Json(result))
+//     };
+//     let duration = end_date_time - start_date_time;
+//     start_timer(duration.num_milliseconds().try_into().unwrap()).await;
+//     // Issue turn off command
+//     turn_off_device(Json(SimpleDeviceData {
+//         alias: payload.alias,
+//         mac: payload.mac
+//     })).await   
+//     // Return true
 // }
+
+async fn start_timer_device (
+    Json(payload): Json<SetTimerData>,
+) -> (StatusCode, Json<bool>) {
+    let duration = payload.length_ms;
+    start_timer(duration).await;
+    turn_off_device(Json(SimpleDeviceData {
+        alias: payload.alias,
+        mac: payload.mac
+    })).await   
+}
 
 #[derive(Debug, Clone)]
 struct FindDeviceError;
