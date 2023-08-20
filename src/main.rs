@@ -4,7 +4,8 @@ use axum::{
     response::IntoResponse,
     Json,
     Router,
-    debug_handler
+    debug_handler,
+    extract::Path
 };
 use serde::{Deserialize, Serialize};
 use tplinker::{
@@ -20,6 +21,7 @@ use tplinker::{
 };
 use serde_json::json;
 use tokio::time;
+use tokio::sync::{mpsc, oneshot};
 use std::error;
 use chrono::{Utc, Date};
 use chrono::DateTime;
@@ -31,7 +33,8 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     // Create channel
-    // let (tx, rx) = tokio::sync::channel();
+    // let (tx, mut rx) = mpsc::channel(32);
+    // tokio::spawn (async move { process(rx).await; });
 
     let app = Router::new()
         .route("/", get(root))
@@ -40,6 +43,7 @@ async fn main() {
         .route("/devices/turn_on", post(turn_on_device))
         .route("/devices/turn_off", post(turn_off_device))
         .route("/devices/set_timer", post(start_timer_device));
+        //.route("/sleep/:id", get(move |path| sleep_and_print(path, &tx)));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
@@ -47,8 +51,33 @@ async fn main() {
         .unwrap();
 }
 
+// async fn process(rx: mpsc::Receiver<(i32, oneshot::Sender<String>)>)
+// {
+//     while let Ok((timer, tx)) = rx.recv().await {
+//         start_timer_send_json(timer).await;
+//         if let Err(e) = tx.send(format!("{{\"timer\": {}}}", timer)) {
+//             println!("{:?}", e);
+//         }
+//     }
+// }
+
+// async fn sleep_and_print(
+//     Path(timer): Path<i32>,
+//     tx: &mpsc::Sender<(i32, oneshot::Sender<String>)>) -> String
+// {
+//     let (otx, orx) = oneshot::channel();
+//     tx.send((timer, otx)).await.unwrap();
+//     orx.await.unwrap()
+// }
+
+// async fn start_timer_send_json(timer: i32) {
+//     println!("Start timer {}.", timer);
+//     tokio::time::sleep(time::Duration::from_secs(300)).await;
+//     println!("Timer {} done.", timer);
+// }
+
 async fn root() -> &'static str {
-    "Hello, World!"
+    "EnergySync"
 }
 
 async fn create_user(
@@ -192,7 +221,7 @@ async fn start_timer(length_ms: u64) {
 
     while now.elapsed().expect("").as_secs() < duration.as_secs() {
         interval.tick().await;
-        println!("tick");
+        println!("tick {}", now.elapsed().unwrap().as_secs());
     }
 }
 
@@ -224,11 +253,14 @@ async fn start_timer_device (
     Json(payload): Json<SetTimerData>,
 ) -> (StatusCode, Json<bool>) {
     let duration = payload.length_ms;
-    start_timer(duration).await;
-    turn_off_device(Json(SimpleDeviceData {
-        alias: payload.alias,
-        mac: payload.mac
-    })).await   
+    tokio::spawn(async move {
+        start_timer(duration).await;
+        turn_off_device(Json(SimpleDeviceData {
+            alias: payload.alias,
+            mac: payload.mac
+        })).await;
+    });
+    (StatusCode::OK, Json(true))
 }
 
 #[derive(Debug, Clone)]
