@@ -4,7 +4,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tplinker::{
-    datatypes::{SysInfo},
+    datatypes::SysInfo,
     error::{Error as TPLinkerError, Result as TPLinkerResult},
     capabilities::DeviceActions,
 };
@@ -97,17 +97,6 @@ async fn turn_on_off_device (
     };
 
     (StatusCode::OK, Json(result))
-}
-
-#[derive(Deserialize)]
-struct CreateUser {
-    username: String,
-}
-
-#[derive(Serialize)]
-struct User {
-    id: u64,
-    username: String,
 }
 
 #[derive(Serialize, Deserialize)]

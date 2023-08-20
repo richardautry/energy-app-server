@@ -3,21 +3,28 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::{time::SystemTime};
+use std::time::SystemTime;
 use tokio::time;
 use crate::device::{
     turn_off_device,
+    turn_on_device,
     SimpleDeviceData
 };
+
+#[derive(Serialize, Deserialize)]
+enum TurnOnOrOff {
+    #[serde(rename = "turn_on")]
+    TurnOn,
+    #[serde(rename = "turn_off")]
+    TurnOff
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct SetTimerData {
     alias: String,
     mac: String,
-    // #[serde(with = "ts_seconds_option")]
-    // start_date_time: Option<DateTime<Utc>>,
-    // end_date_time: Option<DateTime<Utc>>
-    length_ms: u64
+    length_ms: u64,
+    turn_on_or_off: TurnOnOrOff
 }
 
 async fn start_timer(length_ms: u64) {
@@ -37,10 +44,15 @@ pub async fn start_timer_device (
     let duration = payload.length_ms;
     tokio::spawn(async move {
         start_timer(duration).await;
-        turn_off_device(Json(SimpleDeviceData {
+        let simple_device_data = SimpleDeviceData {
             alias: payload.alias,
             mac: payload.mac
-        })).await;
+        };
+        match payload.turn_on_or_off {
+            TurnOnOrOff::TurnOff => turn_off_device(Json(simple_device_data)).await,
+            TurnOnOrOff::TurnOn => turn_on_device(Json(simple_device_data)).await
+        }
+        
     });
     (StatusCode::OK, Json(true))
 }

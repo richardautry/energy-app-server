@@ -16,10 +16,6 @@ use device::{
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    // Create channel
-    // let (tx, mut rx) = mpsc::channel(32);
-    // tokio::spawn (async move { process(rx).await; });
-
     let app = Router::new()
         .route("/", get(root))
         .route("/devices", get(device_data))
