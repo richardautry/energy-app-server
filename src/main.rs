@@ -4,33 +4,46 @@ use axum::{
     response::IntoResponse,
     Json,
     Router,
-    debug_handler
+    debug_handler,
+    extract::Path
 };
 use serde::{Deserialize, Serialize};
 use tplinker::{
     datatypes::{DeviceData, SysInfo},
-    devices,
-    error::{Error, Result},
-    capabilities::DeviceActions
+    devices::{RawDevice},
+    error::{Error as TPLinkerError, Result as TPLinkerResult},
+    capabilities::DeviceActions,
 };
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::SystemTime};
 use tplinker::{
     discovery::discover,
     devices::Device,
 };
 use serde_json::json;
-
+use tokio::time;
+use tokio::sync::{mpsc, oneshot};
+use std::error;
+use chrono::{Utc, Date};
+use chrono::DateTime;
+use chrono::offset::TimeZone;
+use chrono::serde::ts_seconds_option;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+
+    // Create channel
+    // let (tx, mut rx) = mpsc::channel(32);
+    // tokio::spawn (async move { process(rx).await; });
 
     let app = Router::new()
         .route("/", get(root))
         .route("/users", post(create_user))
         .route("/devices", get(device_data))
         .route("/devices/turn_on", post(turn_on_device))
-        .route("/devices/turn_off", post(turn_off_device));
+        .route("/devices/turn_off", post(turn_off_device))
+        .route("/devices/set_timer", post(start_timer_device));
+        //.route("/sleep/:id", get(move |path| sleep_and_print(path, &tx)));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
@@ -38,8 +51,33 @@ async fn main() {
         .unwrap();
 }
 
+// async fn process(rx: mpsc::Receiver<(i32, oneshot::Sender<String>)>)
+// {
+//     while let Ok((timer, tx)) = rx.recv().await {
+//         start_timer_send_json(timer).await;
+//         if let Err(e) = tx.send(format!("{{\"timer\": {}}}", timer)) {
+//             println!("{:?}", e);
+//         }
+//     }
+// }
+
+// async fn sleep_and_print(
+//     Path(timer): Path<i32>,
+//     tx: &mpsc::Sender<(i32, oneshot::Sender<String>)>) -> String
+// {
+//     let (otx, orx) = oneshot::channel();
+//     tx.send((timer, otx)).await.unwrap();
+//     orx.await.unwrap()
+// }
+
+// async fn start_timer_send_json(timer: i32) {
+//     println!("Start timer {}.", timer);
+//     tokio::time::sleep(time::Duration::from_secs(300)).await;
+//     println!("Timer {} done.", timer);
+// }
+
 async fn root() -> &'static str {
-    "Hello, World!"
+    "EnergySync"
 }
 
 async fn create_user(
@@ -74,15 +112,15 @@ async fn device_data() -> Json<Vec<SimpleDeviceData>> {
     axum::Json(devices_data)
 }
 
-fn check_command_error(value: &serde_json::Value, pointer: &str) -> Result<()> {
+fn check_command_error(value: &serde_json::Value, pointer: &str) -> TPLinkerResult<()> {
     if let Some(err_code) = value.pointer(pointer) {
         if err_code == 0 {
             Ok(())
         } else {
-            Err(Error::from(format!("Invalid error code {}", err_code)))
+            Err(TPLinkerError::from(format!("Invalid error code {}", err_code)))
         }
     } else {
-        Err(Error::from(format!("Invalid response format: {}", value)))
+        Err(TPLinkerError::from(format!("Invalid response format: {}", value)))
     }
 }
 
@@ -108,33 +146,32 @@ async fn turn_on_off_device (
         true => 1,
         false => 0
     };
-    for device in devices {
-        result = match device {
-            Device::Unknown(device) => {
-                let sys_info = match device.sysinfo() {
-                    Ok(sys_info) => sys_info,
-                    Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
-                };
-                match sys_info.mac == payload.mac {
-                    true => {
-                        let command = json!({
-                            "system": {"set_relay_state": {"state": state_int}}
-                        }).to_string();
-                        let command_result = check_command_error(
-                            &device.send(&command).unwrap(),
-                            "/system/set_relay_state/err_code",
-                        );
-                        match command_result {
-                            Ok(_) => true,
-                            Err(_) => false,
-                        }
+    let device = get_device(&payload.mac).await.unwrap();
+    result = match device {
+        Device::Unknown(device) => {
+            let sys_info = match device.sysinfo() {
+                Ok(sys_info) => sys_info,
+                Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(false))
+            };
+            match sys_info.mac == payload.mac {
+                true => {
+                    let command = json!({
+                        "system": {"set_relay_state": {"state": state_int}}
+                    }).to_string();
+                    let command_result = check_command_error(
+                        &device.send(&command).unwrap(),
+                        "/system/set_relay_state/err_code",
+                    );
+                    match command_result {
+                        Ok(_) => true,
+                        Err(_) => false,
                     }
-                    false => false
                 }
-            },
-            _ => false
-        }
-    }
+                false => false
+            }
+        },
+        _ => false
+    };
 
     (StatusCode::OK, Json(result))
 }
@@ -154,4 +191,103 @@ struct User {
 struct SimpleDeviceData {
     alias: String,
     mac: String
+}
+
+// #[derive(Serialize, Deserialize)]
+// struct SetTimerData {
+//     alias: String,
+//     mac: String,
+//     // #[serde(with = "ts_seconds_option")]
+//     // start_date_time: Option<DateTime<Utc>>,
+//     // end_date_time: Option<DateTime<Utc>>
+//     start_date_time: String,
+//     end_date_time: String
+// }
+
+#[derive(Serialize, Deserialize)]
+struct SetTimerData {
+    alias: String,
+    mac: String,
+    // #[serde(with = "ts_seconds_option")]
+    // start_date_time: Option<DateTime<Utc>>,
+    // end_date_time: Option<DateTime<Utc>>
+    length_ms: u64
+}
+
+async fn start_timer(length_ms: u64) {
+    let duration: time::Duration = time::Duration::from_millis(length_ms);
+    let now: SystemTime = SystemTime::now();
+    let mut interval = time::interval(time::Duration::from_secs(1));
+
+    while now.elapsed().expect("").as_secs() < duration.as_secs() {
+        interval.tick().await;
+        println!("tick {}", now.elapsed().unwrap().as_secs());
+    }
+}
+
+// async fn start_timer_device (
+//     Json(payload): Json<SetTimerData>,
+// ) -> (StatusCode, Json<bool>) {
+//     let result = false;
+//     // let device = get_device(&payload.mac).await;
+//     // TODO: Handle unpacking these values
+//     let start_date_time = match payload.start_date_time.parse::<DateTime<Utc>>() {
+//         Ok(start_date_time) => start_date_time,
+//         Err(_) => return (StatusCode::UNPROCESSABLE_ENTITY, Json(result))
+//     };
+//     let end_date_time =  match payload.start_date_time.parse::<DateTime<Utc>>() {
+//         Ok(start_date_time) => start_date_time,
+//         Err(_) => return (StatusCode::UNPROCESSABLE_ENTITY, Json(result))
+//     };
+//     let duration = end_date_time - start_date_time;
+//     start_timer(duration.num_milliseconds().try_into().unwrap()).await;
+//     // Issue turn off command
+//     turn_off_device(Json(SimpleDeviceData {
+//         alias: payload.alias,
+//         mac: payload.mac
+//     })).await   
+//     // Return true
+// }
+
+async fn start_timer_device (
+    Json(payload): Json<SetTimerData>,
+) -> (StatusCode, Json<bool>) {
+    let duration = payload.length_ms;
+    tokio::spawn(async move {
+        start_timer(duration).await;
+        turn_off_device(Json(SimpleDeviceData {
+            alias: payload.alias,
+            mac: payload.mac
+        })).await;
+    });
+    (StatusCode::OK, Json(true))
+}
+
+#[derive(Debug, Clone)]
+struct FindDeviceError;
+
+
+async fn get_device(mac: &String) -> Result<Device, FindDeviceError> {
+    let devices = get_devices().await;
+    let ret_device: &Device = devices.iter().find_map(|d| match_device(d, &mac)).unwrap();
+    
+    Ok(ret_device.clone())
+}
+
+fn match_device<'device>(device: & 'device Device, mac: &String) -> Option<& 'device Device> {
+    let found = match device {
+        Device::Unknown(device) => {
+            let sys_info = match device.sysinfo() {
+                Ok(sys_info) => sys_info,
+                // TODO: Return errors correctly
+                Err(_) => return None
+            };
+            sys_info.mac == mac.clone()
+        },
+        _ => false
+    };
+    match found {
+        true => Some(device),
+        false => None
+    }
 }
