@@ -1,5 +1,6 @@
 mod timer;
 mod device;
+mod eia_client;
 
 use axum::{
     routing::{get, post},
