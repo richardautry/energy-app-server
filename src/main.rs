@@ -12,9 +12,12 @@ use device::{
     turn_on_device,
     turn_off_device,
 };
+use eia_client::get_eia_data;
 
 #[tokio::main]
 async fn main() {
+    get_eia_data().await;
+
     tracing_subscriber::fmt::init();
 
     let app = Router::new()
