@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use reqwest;
+use serde::__private::de::IdentifierDeserializer;
 // use tokio::io::BufReader;
 // use tokio::fs::File;
 use std::fs::File;
@@ -25,8 +26,10 @@ pub async fn get_eia_data() -> Result<(), reqwest::Error> {
     // let response = reqwest::get(&request_url).await?;
     // let users: Vec<User> = response.json().await?;
     let api_key = get_config_json().await.expect("").api_key;
-    let eia_url = "https://api.eia.gov/v2/electricity/rto/region-data/data/";
-    let response = reqwest::get(eia_url).await?;
+    let eia_url: String = String::from("https://api.eia.gov/v2/electricity/rto/region-data/data/");
+    let full_url = eia_url + &String::from("?api_key=") + &api_key;
+    let response = reqwest::get(&full_url).await?;
+    println!("Full URL: {}", full_url);
     println!("{}", response.status());
 
     Ok(())
