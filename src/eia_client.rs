@@ -27,8 +27,18 @@ pub async fn get_eia_data() -> Result<(), reqwest::Error> {
     // let users: Vec<User> = response.json().await?;
     let api_key = get_config_json().await.expect("").api_key;
     let eia_url: String = String::from("https://api.eia.gov/v2/electricity/rto/region-data/data/");
-    let full_url = eia_url + &String::from("?api_key=") + &api_key;
+    
+
+    let frequency = String::from("&frequency=local-hourly");
+    let data = String::from("&data[0]=value");
+    let facets = String::from("&facets[respondent][]=MIDA");
+    let start_date = String::from("&start=2023-07-14T00:00:00-04:00");
+    let end_date = String::from("&end=2023-07-17T00:00:00-04:00");
+
+    let full_url = eia_url + &String::from("?api_key=") + &api_key + &frequency + &data + &facets + &start_date + &end_date;
+    
     let response = reqwest::get(&full_url).await?;
+    
     println!("Full URL: {}", full_url);
     println!("{}", response.status());
 
