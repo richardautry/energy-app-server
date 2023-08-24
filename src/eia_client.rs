@@ -1,8 +1,5 @@
 use serde::Deserialize;
 use reqwest;
-use serde::__private::de::IdentifierDeserializer;
-// use tokio::io::BufReader;
-// use tokio::fs::File;
 use std::fs::File;
 use std::io::BufReader;
 use std::env::current_dir;
@@ -11,6 +8,35 @@ use std::env::current_dir;
 struct User {
     login: String,
     id: u32,
+}
+
+#[derive(Deserialize, Debug)]
+struct EIAData {
+    period: String,
+    respondent: String,
+    // TODO: Translate respondent-name to respondent_name before deserialization
+    respondent_name: String,
+    r#type: String,
+    type_name: String,
+    value: u64,
+    // TODO: Translate this from value-units to value_units
+    value_units: String
+}
+
+#[derive(Deserialize, Debug)]
+struct EIAResponse {
+    total: u64,
+    date_format: String,
+    frequency: String,
+    data: Vec<EIAData>,
+    description: String
+}
+
+#[derive(Deserialize, Debug)]
+struct EIAJsonResult {
+    response: EIAResponse,
+    request: String,
+    api_version: String
 }
 
 #[derive(Deserialize)]
@@ -39,8 +65,17 @@ pub async fn get_eia_data() -> Result<(), reqwest::Error> {
     
     let response = reqwest::get(&full_url).await?;
     
+    let ser_data = response.json::<EIAJsonResult>().await;
+
+    match ser_data {
+        Ok(result) => println!("{:?}", result),
+        Err(e) => println!("{}", e)
+    }
+
     println!("Full URL: {}", full_url);
-    println!("{}", response.status());
+    // println!("{}", response.status());
+    // println!("{}", response.text().await?);
+    // println!("{:?}", ser_data);
 
     Ok(())
 }
