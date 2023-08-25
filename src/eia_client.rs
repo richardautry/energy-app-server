@@ -15,6 +15,8 @@ struct EIAData {
     period: String,
     respondent: String,
     // TODO: Translate respondent-name to respondent_name before deserialization
+    // Explore using custom serde Deserialization logic to translate this value before deserialization
+    // Otherwise, will have to change values in the payload string in separate function
     respondent_name: String,
     r#type: String,
     type_name: String,
