@@ -14,16 +14,12 @@ struct User {
 struct EIAData {
     period: String,
     respondent: String,
-    // TODO: Translate respondent-name to respondent_name before deserialization
-    // Explore using custom serde Deserialization logic to translate this value before deserialization
-    // Otherwise, will have to change values in the payload string in separate function
     #[serde(rename(deserialize = "respondent-name"))]
     respondent_name: String,
     r#type: String,
     #[serde(rename(deserialize = "type-name"))]
     type_name: String,
     value: u64,
-    // TODO: Translate this from value-units to value_units
     #[serde(rename(deserialize = "value-units"))]
     value_units: String
 }
@@ -72,17 +68,11 @@ struct Config {
     api_key: String,
 }
 
-// TODO: Add EIA structs and calls here
 pub async fn get_eia_data() -> Result<(), reqwest::Error> {
-    // let request_url = format!("https://api/github.com/repos/{owner}/{repo}/stargazers",
-    //                             owner = "rust-lang-nursery",
-    //                             repo = "rust-cookbook");
-    // let response = reqwest::get(&request_url).await?;
-    // let users: Vec<User> = response.json().await?;
     let api_key = get_config_json().await.expect("").api_key;
     let eia_url: String = String::from("https://api.eia.gov/v2/electricity/rto/region-data/data/");
     
-
+    // TODO: Add start/end dates for current datetime or pass as params
     let frequency = String::from("&frequency=local-hourly");
     let data = String::from("&data[0]=value");
     let facets = String::from("&facets[respondent][]=MIDA");
