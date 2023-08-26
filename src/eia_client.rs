@@ -17,17 +17,21 @@ struct EIAData {
     // TODO: Translate respondent-name to respondent_name before deserialization
     // Explore using custom serde Deserialization logic to translate this value before deserialization
     // Otherwise, will have to change values in the payload string in separate function
+    #[serde(rename(deserialize = "respondent-name"))]
     respondent_name: String,
     r#type: String,
+    #[serde(rename(deserialize = "type-name"))]
     type_name: String,
     value: u64,
     // TODO: Translate this from value-units to value_units
+    #[serde(rename(deserialize = "value-units"))]
     value_units: String
 }
 
 #[derive(Deserialize, Debug)]
 struct EIAResponse {
     total: u64,
+    #[serde(rename(deserialize = "dateFormat"))]
     date_format: String,
     frequency: String,
     data: Vec<EIAData>,
@@ -35,9 +39,31 @@ struct EIAResponse {
 }
 
 #[derive(Deserialize, Debug)]
+struct EIARequest {
+    command: String,
+    params: EIARequestParams,
+}
+
+#[derive(Deserialize, Debug)]
+struct EIARequestParams {
+    api_key: String,
+    frequency: String,
+    data: Vec<String>,
+    facets: EIARequestParamsFacets,
+    start: String,
+    end: String
+}
+
+#[derive(Deserialize, Debug)]
+struct EIARequestParamsFacets {
+    respondent: Vec<String>
+}
+
+#[derive(Deserialize, Debug)]
 struct EIAJsonResult {
     response: EIAResponse,
-    request: String,
+    request: EIARequest,
+    #[serde(rename(deserialize = "apiVersion"))]
     api_version: String
 }
 
