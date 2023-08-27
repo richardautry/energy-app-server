@@ -3,6 +3,8 @@ use reqwest;
 use std::fs::File;
 use std::io::BufReader;
 use std::env::current_dir;
+use chrono::prelude::*;
+use chrono::Duration;
 
 #[derive(Deserialize, Debug)]
 struct User {
@@ -72,12 +74,22 @@ pub async fn get_eia_data() -> Result<(), reqwest::Error> {
     let api_key = get_config_json().await.expect("").api_key;
     let eia_url: String = String::from("https://api.eia.gov/v2/electricity/rto/region-data/data/");
     
-    // TODO: Add start/end dates for current datetime or pass as params
     let frequency = String::from("&frequency=local-hourly");
     let data = String::from("&data[0]=value");
     let facets = String::from("&facets[respondent][]=MIDA");
-    let start_date = String::from("&start=2023-07-14T00:00:00-04:00");
-    let end_date = String::from("&end=2023-07-17T00:00:00-04:00");
+    
+    // TODO: Breakout datetime stuff into separate function
+    let datetime_format: &str = "%Y-%m-%dT%H:%M:%S-04:00";
+
+    let local_datetime: DateTime<Local> = Local::now();
+    let local_start_datetime = local_datetime - Duration::days(3);
+    let local_datetime_str: String = local_datetime.format(datetime_format).to_string();
+    let local_start_datetime_str = local_start_datetime.format(datetime_format).to_string();
+
+    let end_date = String::from(format!("&end={}", local_datetime_str));
+    let start_date = String::from(format!("&start={}", local_start_datetime_str));
+
+    println!("Current Datetime: {}", local_datetime_str);
 
     let full_url = eia_url + &String::from("?api_key=") + &api_key + &frequency + &data + &facets + &start_date + &end_date;
     
@@ -90,7 +102,7 @@ pub async fn get_eia_data() -> Result<(), reqwest::Error> {
         Err(e) => println!("{}", e)
     }
 
-    println!("Full URL: {}", full_url);
+    // println!("Full URL: {}", full_url);
     // println!("{}", response.status());
     // println!("{}", response.text().await?);
     // println!("{:?}", ser_data);
