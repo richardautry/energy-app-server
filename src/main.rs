@@ -1,5 +1,6 @@
 mod timer;
 mod device;
+mod eia_client;
 
 use axum::{
     routing::{get, post},
@@ -11,9 +12,12 @@ use device::{
     turn_on_device,
     turn_off_device,
 };
+use eia_client::get_eia_data;
 
 #[tokio::main]
 async fn main() {
+    get_eia_data().await;
+
     tracing_subscriber::fmt::init();
 
     let app = Router::new()
