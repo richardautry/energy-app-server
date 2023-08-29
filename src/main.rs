@@ -1,6 +1,7 @@
 mod timer;
 mod device;
 mod eia_client;
+mod energy_demand;
 
 use axum::{
     routing::{get, post},
@@ -13,10 +14,12 @@ use device::{
     turn_off_device,
 };
 use eia_client::get_eia_data;
+use energy_demand::find_peak_hour_timeframe;
 
 #[tokio::main]
 async fn main() {
-    get_eia_data().await;
+    // get_eia_data().await;
+    find_peak_hour_timeframe().await;
 
     tracing_subscriber::fmt::init();
 

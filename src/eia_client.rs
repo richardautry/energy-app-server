@@ -13,26 +13,26 @@ struct User {
 }
 
 #[derive(Deserialize, Debug)]
-struct EIAData {
-    period: String,
+pub struct EIAData {
+    pub period: String,
     respondent: String,
     #[serde(rename(deserialize = "respondent-name"))]
     respondent_name: String,
-    r#type: String,
+    pub r#type: String,
     #[serde(rename(deserialize = "type-name"))]
     type_name: String,
-    value: u64,
+    pub value: u64,
     #[serde(rename(deserialize = "value-units"))]
     value_units: String
 }
 
 #[derive(Deserialize, Debug)]
-struct EIAResponse {
+pub struct EIAResponse {
     total: u64,
     #[serde(rename(deserialize = "dateFormat"))]
     date_format: String,
     frequency: String,
-    data: Vec<EIAData>,
+    pub data: Vec<EIAData>,
     description: String
 }
 
@@ -58,8 +58,8 @@ struct EIARequestParamsFacets {
 }
 
 #[derive(Deserialize, Debug)]
-struct EIAJsonResult {
-    response: EIAResponse,
+pub struct EIAJsonResult {
+    pub response: EIAResponse,
     request: EIARequest,
     #[serde(rename(deserialize = "apiVersion"))]
     api_version: String
@@ -70,7 +70,7 @@ struct Config {
     api_key: String,
 }
 
-pub async fn get_eia_data() -> Result<(), reqwest::Error> {
+pub async fn get_eia_data() -> Result<EIAJsonResult, reqwest::Error> {
     let api_key = get_config_json().await.expect("").api_key;
     let eia_url: String = String::from("https://api.eia.gov/v2/electricity/rto/region-data/data/");
     
@@ -97,17 +97,17 @@ pub async fn get_eia_data() -> Result<(), reqwest::Error> {
     
     let ser_data = response.json::<EIAJsonResult>().await;
 
-    match ser_data {
-        Ok(result) => println!("{:?}", result),
-        Err(e) => println!("{}", e)
-    }
+    // match &ser_data {
+    //     Ok(result) => println!("{:?}", result),
+    //     Err(e) => println!("{}", e)
+    // }
 
     // println!("Full URL: {}", full_url);
     // println!("{}", response.status());
     // println!("{}", response.text().await?);
     // println!("{:?}", ser_data);
 
-    Ok(())
+    ser_data
 }
 
 async fn get_config_json() -> Result<Config, serde_json::Error> {

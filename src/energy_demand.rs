@@ -1,3 +1,11 @@
+use crate::eia_client::{
+    get_eia_data,
+    EIAData
+};
+use chrono::Local;
+use chrono::Duration;
+use reqwest;
+
 // Use the following python function to calculate peak hours
 // def find_peak_hour_timeframe(demand_data):
 //     """
@@ -21,3 +29,27 @@
 //             peak_hours_percentage += (right_value / total_megawatt_hours)
 //             right_index += 1
 //     return demand_data[left_index], demand_data[right_index], peak_hours_percentage
+
+pub async fn find_peak_hour_timeframe() -> Result<Vec<EIAData>, reqwest::Error>{
+    let mut result: Vec<EIAData> = Vec::new();
+    let json_result = get_eia_data().await?;
+
+    let response = json_result.response;
+    let data = response.data;
+    
+    // Current using yesterday's data as current forecast is not available
+    let local_datetime = Local::now() - Duration::days(1);
+    let current_day_str = local_datetime.format("%Y-%m-%d").to_string();
+
+    let current_day_data = data.iter().filter(
+        |d| d.period.contains(&current_day_str) && d.r#type == "DF"
+    );
+
+    let high_hour_data = current_day_data.max_by_key(|d| d.value).unwrap();
+
+    // TODO: Implement loop on data here to find peak hours
+
+    println!("{:?}", high_hour_data);
+
+    Ok(data)
+}
