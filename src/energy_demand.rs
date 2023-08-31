@@ -47,13 +47,14 @@ pub async fn find_peak_hour_timeframe() -> Result<Vec<EIAData>, reqwest::Error>{
 
     let high_hour_data = current_day_data.clone().max_by_key(|d| d.value).unwrap();
     let high_hour_index = current_day_data.clone().position(|d| d.value == high_hour_data.value).unwrap();
-    let total_megawatt_hours = current_day_data.map(|d| d.value).reduce(|acc, v| acc + v).unwrap();
+    let total_megawatt_hours = current_day_data.clone().map(|d| d.value).reduce(|acc, v| acc + v).unwrap();
     let mut peak_hours_percentage = (high_hour_data.value / total_megawatt_hours) as f32;
-    let mut left_index = high_hour_index - 1;
-    let mut right_index = high_hour_index + 1;
+    // let mut left_index = high_hour_index - 1;
+    // let mut right_index = high_hour_index + 1;
 
-    while peak_hours_percentage > 0.2 {
-
+    while peak_hours_percentage > 0.2 && left_index >= 0 && right_index < current_day_data.clone().count() {
+        // TODO: There's probably a smarter way to do this using two iterators
+        
     }
 
     // TODO: Implement loop on data here to find peak hours
