@@ -41,18 +41,30 @@ pub async fn find_peak_hour_timeframe() -> Result<Vec<EIAData>, reqwest::Error>{
     let local_datetime = Local::now() - Duration::days(1);
     let current_day_str = local_datetime.format("%Y-%m-%d").to_string();
 
-    let current_day_data = data.iter().filter(
-        |d| d.period.contains(&current_day_str) && d.r#type == "DF"
-    );
+    // let current_day_index_start = data.iter().position(
+    //     |d| d.period.contains(&current_day_str) && d.r#type == "DF"
+    // ).unwrap();
+    // let current_day_index_end = &data[current_day_index_start..].iter().position(
+    //     |d| !d.period.contains(&current_day_str)
+    // ).unwrap();
 
-    let high_hour_data = current_day_data.clone().max_by_key(|d| d.value).unwrap();
-    let high_hour_index = current_day_data.clone().position(|d| d.value == high_hour_data.value).unwrap();
-    let total_megawatt_hours = current_day_data.clone().map(|d| d.value).reduce(|acc, v| acc + v).unwrap();
+    let current_day_data: Vec<&EIAData> = data.iter().filter(
+        |d| d.period.contains(&current_day_str) && d.r#type == "DF"
+    ).collect();
+
+    let high_hour_data = current_day_data.iter().max_by_key(|d| d.value).unwrap();
+    let high_hour_index = current_day_data.iter().position(|d| d.value == high_hour_data.value).unwrap();
+    let total_megawatt_hours = current_day_data.iter().map(|d| d.value).reduce(|acc, v| acc + v).unwrap();
     let mut peak_hours_percentage = (high_hour_data.value / total_megawatt_hours) as f32;
+    
+    let mut left_vec = Vec::from(&current_day_data[0..high_hour_index]);
+    left_vec.reverse();
+    let left_iter = left_vec.iter();
+    let right_iter = &current_day_data[high_hour_index + 1..].iter();
     // let mut left_index = high_hour_index - 1;
     // let mut right_index = high_hour_index + 1;
 
-    while peak_hours_percentage > 0.2 && left_index >= 0 && right_index < current_day_data.clone().count() {
+    while peak_hours_percentage > 0.2 {
         // TODO: There's probably a smarter way to do this using two iterators
         
     }
