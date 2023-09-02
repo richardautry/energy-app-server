@@ -5,6 +5,7 @@ use crate::eia_client::{
 use chrono::Local;
 use chrono::Duration;
 use chrono::DateTime;
+use chrono::LocalResult;
 use reqwest;
 
 // TODO: Change return to tuple of datetime
@@ -57,21 +58,27 @@ pub async fn find_peak_hour_timeframe() -> Result<(DateTime<Local>, DateTime<Loc
     println!("{} to {}", &current_day_data[left_index].period, &current_day_data[right_index].period);
 
     let left_datetime_string = current_day_data[left_index].period.to_owned();
-    let mut left_datetime_split = left_datetime_string.split("T");
-    let left_date_string = left_datetime_split.next().unwrap();
-    let left_time_string = left_datetime_split.next().unwrap();
-    let left_hour = &left_time_string[..2];
-    let left_tz = &left_time_string[2..];
-    
-    let left_timezone = local_datetime.timezone();  // TODO: Parse timezone from API response
-    let left_date = Local::now().date_naive();
-    let left_datetime = left_date.and_hms_opt(
-        left_hour.parse::<u32>().unwrap(), 0, 0
-    ).unwrap().and_local_timezone(left_timezone).unwrap();
+    let right_datetime_string = current_day_data[right_index].period.to_owned();
+    let local_timezone = local_datetime.timezone();
 
-    println!("{}", left_datetime);
+    let left_datetime = get_datetime_from_string(left_datetime_string, local_timezone).await.unwrap();
+    let right_datetime = get_datetime_from_string(right_datetime_string, local_timezone).await.unwrap();
 
-    Ok((left_datetime, local_datetime))
+    println!("{} to {}", left_datetime, right_datetime);
+
+    Ok((left_datetime, right_datetime))
 }
 
 // TODO: Refactor out timedate parsing to get left and right datetimes
+pub async fn get_datetime_from_string(datetime_string: String, timezone: Local) -> LocalResult<DateTime<Local>> {
+    let mut datetime_split = datetime_string.split("T");
+    let date_string = datetime_split.next().unwrap();
+    let time_string = datetime_split.next().unwrap();
+    let hour_string = &time_string[..2];
+    let tz_string = &time_string[2..];  // TODO: Parse timezone from API response
+    let date = Local::now().date_naive();
+
+    date.and_hms_opt(
+        hour_string.parse::<u32>().unwrap(), 0, 0
+    ).unwrap().and_local_timezone(timezone)
+}
