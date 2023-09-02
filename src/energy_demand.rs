@@ -4,9 +4,11 @@ use crate::eia_client::{
 };
 use chrono::Local;
 use chrono::Duration;
+use chrono::DateTime;
 use reqwest;
 
-pub async fn find_peak_hour_timeframe() -> Result<Vec<EIAData>, reqwest::Error>{
+// TODO: Change return to tuple of datetime
+pub async fn find_peak_hour_timeframe() -> Result<(DateTime<Local>, DateTime<Local>), reqwest::Error>{
     let mut result: Vec<EIAData> = Vec::new();
     let json_result = get_eia_data().await?;
 
@@ -52,6 +54,24 @@ pub async fn find_peak_hour_timeframe() -> Result<Vec<EIAData>, reqwest::Error>{
     println!("{:?}", high_hour_data);
     println!("peak_hours_percentage: {:.2}", peak_hours_percentage);
     println!("Left Index {}, Right Index {}", left_index, right_index);
+    println!("{} to {}", &current_day_data[left_index].period, &current_day_data[right_index].period);
 
-    Ok(data)
+    let left_datetime_string = current_day_data[left_index].period.to_owned();
+    let mut left_datetime_split = left_datetime_string.split("T");
+    let left_date_string = left_datetime_split.next().unwrap();
+    let left_time_string = left_datetime_split.next().unwrap();
+    let left_hour = &left_time_string[..2];
+    let left_tz = &left_time_string[2..];
+    
+    let left_timezone = local_datetime.timezone();  // TODO: Parse timezone from API response
+    let left_date = Local::now().date_naive();
+    let left_datetime = left_date.and_hms_opt(
+        left_hour.parse::<u32>().unwrap(), 0, 0
+    ).unwrap().and_local_timezone(left_timezone).unwrap();
+
+    println!("{}", left_datetime);
+
+    Ok((left_datetime, local_datetime))
 }
+
+// TODO: Refactor out timedate parsing to get left and right datetimes
