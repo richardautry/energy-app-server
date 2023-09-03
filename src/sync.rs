@@ -9,18 +9,11 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::de;
 use tokio::time;
 
 pub async fn start_sync_with_energy_demand(
     Json(payload): Json<SimpleDeviceData>,
 ) -> (StatusCode, Json<bool>) {
-    // TODO:
-    // Create async function that spawns a task which will
-    // check the for the current time every hour (or 5 minutes maybe)
-    // If the time is inside the high demand window, turn off the device
-    // If the time is outside the high demand window, turn on the device
-    // Check state before issuing command to avoid unnecessary commands
     tokio::spawn(async move {
         let mut interval = time::interval(time::Duration::from_secs(5 * 60));
         let demand_times = find_peak_hour_timeframe().await.unwrap();
