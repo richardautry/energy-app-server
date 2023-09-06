@@ -7,7 +7,11 @@ mod sync;
 use axum::{
     routing::{get, post},
     Router,
+    body::Body,
+    http::Request,
+    routing::any
 };
+use axum::extract::Host;
 use timer::start_timer_device;
 use device::{
     device_data,
@@ -16,6 +20,7 @@ use device::{
 };
 use energy_demand::find_peak_hour_timeframe;
 use sync::start_sync_with_energy_demand;
+use tower::ServiceExt;
 
 #[tokio::main]
 async fn main() {
@@ -23,6 +28,8 @@ async fn main() {
     find_peak_hour_timeframe().await;
 
     tracing_subscriber::fmt::init();
+
+    // TODO: Make this service discoverable on local wifi
 
     let app = Router::new()
         .route("/", get(root))
