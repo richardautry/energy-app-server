@@ -21,11 +21,15 @@ use device::{
 use energy_demand::find_peak_hour_timeframe;
 use sync::start_sync_with_energy_demand;
 use tower::ServiceExt;
+use mdns_sd::{ServiceDaemon, ServiceInfo};
+use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() {
     // get_eia_data().await;
     find_peak_hour_timeframe().await;
+
+    register_service();
 
     tracing_subscriber::fmt::init();
 
@@ -48,4 +52,29 @@ async fn main() {
 
 async fn root() -> &'static str {
     "Welcome to EnergySync"
+}
+
+async fn register_service() {
+    // Create daemon
+    let mdns = ServiceDaemon::new().expect("Failed to create daemon");
+
+    // Create service
+    let service_type = "_mdns-sd-my-test._udp.local.";
+    let instance_name = "my_instance";
+    let host_ipv4 = "192.168.1.12";
+    let host_name = "192.168.1.12.local.";
+    let port = 5200;
+    let properties = [("property_1", "test"), ("property_2", "1234")];
+
+    let my_service = ServiceInfo::new(
+        service_type,
+        instance_name,
+        host_name,
+        host_ipv4,
+        port,
+        &properties[..],
+    ).unwrap();
+
+    // Register the service
+    mdns.register(my_service).expect("Failed to register service")
 }
