@@ -60,14 +60,14 @@ async fn register_service() {
     let mdns = ServiceDaemon::new().expect("Failed to create daemon");
 
     // Create a service info.
-    let service_type = "_energy_sync._tcp.local.";
+    let service_type = "_energy-sync._udp.local.";
     let instance_name = "my_instance";
     // let host_ipv4 = "192.168.1.12";
-    let host_ipv4 = "192.168.1.197";
+    let host_ipv4 = "192.168.1.12";
     // let host_name = "192.168.1.12.local.";
-    let host_name = "192.168.1.197.local.";
+    let host_name = "192.168.1.12.local.";
     // TODO: This basically works, but how to discover service on wifi?
-    let port = 3000;
+    let port = 5200;
     let properties = [("property_1", "test"), ("property_2", "1234")];
 
     let my_service = ServiceInfo::new(
@@ -81,4 +81,5 @@ async fn register_service() {
 
     // Register with the daemon, which publishes the service.
     mdns.register(my_service).expect("Failed to register our service");
+    println!("Finished registering");
 }
