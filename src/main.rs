@@ -67,6 +67,7 @@ async fn register_service() {
     // let host_name = "192.168.1.12.local.";
     let host_name = "192.168.1.12.local.";
     // TODO: This basically works, but how to discover service on wifi?
+    // It doesn't seem like this is broadcasting on wifi but instead looking at localhost (this computer only)
     let port = 5200;
     let properties = [("property_1", "test"), ("property_2", "1234")];
 
