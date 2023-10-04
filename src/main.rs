@@ -29,7 +29,7 @@ async fn main() {
     // get_eia_data().await;
     find_peak_hour_timeframe().await;
 
-    // register_service().await;
+    register_service().await;
 
     tracing_subscriber::fmt::init();
 
@@ -55,12 +55,12 @@ async fn root() -> &'static str {
 }
 
 async fn register_service() {
-
+    // TODO: It doesn't look like this is registering
     // Create a daemon
     let mdns = ServiceDaemon::new().expect("Failed to create daemon");
 
     // Create a service info.
-    let service_type = "_http._udp.local.";
+    let service_type = "_http._tcp.local.";
     let instance_name = "my_instance";
     // let host_ipv4 = "192.168.1.12";
     let host_ipv4 = "192.168.1.12";
