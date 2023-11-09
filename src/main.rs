@@ -24,44 +24,44 @@ use tower::ServiceExt;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use std::collections::HashMap;
 
-#[tokio::main]
-async fn main() {
-    // get_eia_data().await;
-    find_peak_hour_timeframe().await;
+// #[tokio::main]
+// async fn main() {
+//     // get_eia_data().await;
+//     find_peak_hour_timeframe().await;
 
-    register_service().await;
+//     register_service().await;
 
-    tracing_subscriber::fmt::init();
+//     tracing_subscriber::fmt::init();
 
-    // TODO: Make this service discoverable on local wifi
+//     // TODO: Make this service discoverable on local wifi
 
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/devices", get(device_data))
-        .route("/devices/turn_on", post(turn_on_device))
-        .route("/devices/turn_off", post(turn_off_device))
-        .route("/devices/set_timer", post(start_timer_device))
-        .route("/devices/sync_with_demand", post(start_sync_with_energy_demand));
-        //.route("/sleep/:id", get(move |path| sleep_and_print(path, &tx)));
+//     let app = Router::new()
+//         .route("/", get(root))
+//         .route("/devices", get(device_data))
+//         .route("/devices/turn_on", post(turn_on_device))
+//         .route("/devices/turn_off", post(turn_off_device))
+//         .route("/devices/set_timer", post(start_timer_device))
+//         .route("/devices/sync_with_demand", post(start_sync_with_energy_demand));
+//         //.route("/sleep/:id", get(move |path| sleep_and_print(path, &tx)));
 
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
-}
+//     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+//         .serve(app.into_make_service())
+//         .await
+//         .unwrap();
+// }
 
-async fn root() -> &'static str {
-    "Welcome to EnergySync"
-}
+// async fn root() -> &'static str {
+//     "Welcome to EnergySync"
+// }
 
-async fn register_service() {
+fn main() {
     // TODO: It doesn't look like this is registering
     // Create a daemon
     let mdns = ServiceDaemon::new().expect("Failed to create daemon");
 
     // Create a service info.
-    let service_type = "_http._tcp.local.";
-    let instance_name = "my_instance";
+    let service_type = "_rust._tcp.local.";
+    let instance_name = "myinstance";
     // let host_ipv4 = "192.168.1.12";
     let host_ipv4 = "192.168.1.12";
     // let host_name = "192.168.1.12.local.";
@@ -83,4 +83,7 @@ async fn register_service() {
     // Register with the daemon, which publishes the service.
     mdns.register(my_service).expect("Failed to register our service");
     println!("Finished registering");
+
+    std::thread::sleep(std::time::Duration::from_secs(60));
+    mdns.shutdown().unwrap();
 }
