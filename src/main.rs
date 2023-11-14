@@ -24,50 +24,55 @@ use tower::ServiceExt;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use std::collections::HashMap;
 
-// #[tokio::main]
-// async fn main() {
-//     // get_eia_data().await;
-//     find_peak_hour_timeframe().await;
+#[tokio::main]
+async fn main() {
+    // get_eia_data().await;
+    find_peak_hour_timeframe().await;
 
-//     register_service().await;
+    register_service().await;
 
-//     tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt::init();
 
-//     // TODO: Make this service discoverable on local wifi
+    // TODO: Make this service discoverable on local wifi
 
-//     let app = Router::new()
-//         .route("/", get(root))
-//         .route("/devices", get(device_data))
-//         .route("/devices/turn_on", post(turn_on_device))
-//         .route("/devices/turn_off", post(turn_off_device))
-//         .route("/devices/set_timer", post(start_timer_device))
-//         .route("/devices/sync_with_demand", post(start_sync_with_energy_demand));
-//         //.route("/sleep/:id", get(move |path| sleep_and_print(path, &tx)));
+    let app = Router::new()
+        .route("/", get(root))
+        .route("/devices", get(device_data))
+        .route("/devices/turn_on", post(turn_on_device))
+        .route("/devices/turn_off", post(turn_off_device))
+        .route("/devices/set_timer", post(start_timer_device))
+        .route("/devices/sync_with_demand", post(start_sync_with_energy_demand));
+        //.route("/sleep/:id", get(move |path| sleep_and_print(path, &tx)));
 
-//     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
-//         .serve(app.into_make_service())
-//         .await
-//         .unwrap();
-// }
+    // TODO: Add graceful shutdown to deregister mdns service
+    // https://tokio.rs/tokio/topics/shutdown
+    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
+}
 
-// async fn root() -> &'static str {
-//     "Welcome to EnergySync"
-// }
+async fn root() -> &'static str {
+    "Welcome to EnergySync"
+}
 
-fn main() {
-    // TODO: It doesn't look like this is registering
+async fn register_service() {
+    // TODO: Basic idea works standalone. Need to turn this into a background thread/service
+    // https://tokio.rs/tokio/tutorial/spawning
+
     // Create a daemon
     let mdns = ServiceDaemon::new().expect("Failed to create daemon");
 
     // Create a service info.
     let service_type = "_rust._tcp.local.";
     let instance_name = "myinstance";
+    let mut full_name: String = String::new();
+    full_name.push_str(service_type);
+    full_name.push_str(instance_name);
     // let host_ipv4 = "192.168.1.12";
     let host_ipv4 = "192.168.1.12";
     // let host_name = "192.168.1.12.local.";
     let host_name = "192.168.1.12.local.";
-    // TODO: This basically works, but how to discover service on wifi?
-    // It doesn't seem like this is broadcasting on wifi but instead looking at localhost (this computer only)
     let port = 5200;
     let properties = [("property_1", "test"), ("property_2", "1234")];
 
@@ -84,6 +89,7 @@ fn main() {
     mdns.register(my_service).expect("Failed to register our service");
     println!("Finished registering");
 
-    std::thread::sleep(std::time::Duration::from_secs(60));
+    std::thread::sleep(std::time::Duration::from_secs(360));
+    mdns.unregister(&full_name).unwrap();
     mdns.shutdown().unwrap();
 }
