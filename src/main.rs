@@ -23,13 +23,21 @@ use sync::start_sync_with_energy_demand;
 use tower::ServiceExt;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use std::collections::HashMap;
+use tokio::task;
+use tokio::signal;
+use tokio::select;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() {
     // get_eia_data().await;
     find_peak_hour_timeframe().await;
 
-    register_service().await;
+    let cancel_token = CancellationToken::new();
+    let cloned_cancel_token = cancel_token.clone();
+
+    // register_service().await;
+    tokio::spawn(register_service(cloned_cancel_token));
 
     tracing_subscriber::fmt::init();
 
@@ -56,7 +64,7 @@ async fn root() -> &'static str {
     "Welcome to EnergySync"
 }
 
-async fn register_service() {
+async fn register_service(cancel_token: CancellationToken) {
     // TODO: Basic idea works standalone. Need to turn this into a background thread/service
     // https://tokio.rs/tokio/tutorial/spawning
 
@@ -89,7 +97,15 @@ async fn register_service() {
     mdns.register(my_service).expect("Failed to register our service");
     println!("Finished registering");
 
-    std::thread::sleep(std::time::Duration::from_secs(360));
-    mdns.unregister(&full_name).unwrap();
-    mdns.shutdown().unwrap();
+    while true {
+        select! {
+            _ = cancel_token.cancelled() => {
+                mdns.unregister(&full_name).unwrap();
+                mdns.shutdown().unwrap();
+            }
+            _ = std::thread::sleep(std::time::Duration::from_secs(360));
+        }
+    }
+    
+    
 }
