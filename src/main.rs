@@ -35,9 +35,13 @@ async fn main() {
 
     let cancel_token = CancellationToken::new();
     let cloned_cancel_token = cancel_token.clone();
+    let server_cancel_token = cancel_token.clone();
 
     // register_service().await;
-    tokio::spawn(register_service(cloned_cancel_token));
+    let registered_service = tokio::spawn( async move {
+        register_service(cloned_cancel_token).await;
+    }
+    );
 
     tracing_subscriber::fmt::init();
 
@@ -52,12 +56,27 @@ async fn main() {
         .route("/devices/sync_with_demand", post(start_sync_with_energy_demand));
         //.route("/sleep/:id", get(move |path| sleep_and_print(path, &tx)));
 
-    // TODO: Add graceful shutdown to deregister mdns service
-    // https://tokio.rs/tokio/topics/shutdown
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let server = tokio::spawn(async move {
+        axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+            .serve(app.into_make_service())
+            .with_graceful_shutdown(server_cancel_token.cancelled())
+            .await
+            // .unwrap();
+    }
+    );
+
+    match signal::ctrl_c().await {
+        Ok(()) => {},
+        Err(err) => {
+            eprintln!("unable to listen for shutdown: {}", err);
+        },
+    }
+
+    cancel_token.cancel();
+
+    
+    registered_service.await.unwrap();
+    server.await.unwrap();
 }
 
 async fn root() -> &'static str {
@@ -97,15 +116,16 @@ async fn register_service(cancel_token: CancellationToken) {
     mdns.register(my_service).expect("Failed to register our service");
     println!("Finished registering");
 
-    while true {
+    while !cancel_token.is_cancelled() {
         select! {
             _ = cancel_token.cancelled() => {
                 mdns.unregister(&full_name).unwrap();
                 mdns.shutdown().unwrap();
-            }
-            _ = std::thread::sleep(std::time::Duration::from_secs(360));
+                println!("register_service cancelled!");
+            },
+            _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
+                println!("register_service waiting...");
+            },
         }
     }
-    
-    
 }
