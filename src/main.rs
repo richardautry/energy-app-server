@@ -20,6 +20,8 @@ use mdns_sd::{ServiceDaemon, ServiceInfo};
 use tokio::signal;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
+use local_ip_address::local_ip;
+use std::net::{IpAddr, Ipv4Addr};
 
 #[tokio::main]
 async fn main() {
@@ -83,8 +85,17 @@ async fn register_service(cancel_token: CancellationToken) {
     full_name.push_str(service_type);
     full_name.push_str(instance_name);
     // TODO: Get ip address from OS
-    let host_ipv4 = "192.168.1.197";
-    let host_name = "192.168.1.197.local.";
+    // let host_ipv4 = "192.168.1.197";
+    // let host_name = "192.168.1.197.local.";
+    let host_ip = local_ip().unwrap();
+
+    let host_ipv4 = match host_ip {
+        IpAddr::V4(ip4) => println!("ipv4: {}, octets: {:?}", ip4, ip4.octets()),
+        IpAddr::V6(ip6) => {},
+    };
+
+    let host_name = host_ipv4.to_string().to_owned() + ".local";
+
     let port = 5200;
     let properties = [("property_1", "test"), ("property_2", "1234")];
 
