@@ -28,14 +28,14 @@ async fn main() {
     find_peak_hour_timeframe().await;
 
     let cancel_token = CancellationToken::new();
-    let cloned_cancel_token = cancel_token.clone();
+    // let cloned_cancel_token = cancel_token.clone();
     let server_cancel_token = cancel_token.clone();
 
     // register_service().await;
-    let registered_service = tokio::spawn( async move {
-        register_service(cloned_cancel_token).await;
-    }
-    );
+    // let registered_service = tokio::spawn( async move {
+    //     register_service(cloned_cancel_token).await;
+    // }
+    // );
 
     tracing_subscriber::fmt::init();
 
@@ -64,8 +64,9 @@ async fn main() {
     }
 
     cancel_token.cancel();
-    
-    registered_service.await.unwrap();
+
+    // TODO: MDNS registry keeps killing network for some reason. Need to better understand MDNS (and how not to break it) before using this again.
+    // registered_service.await.unwrap();
     server.await.unwrap();
 }
 
